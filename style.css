@@ -168,3 +168,14 @@ body {
 
 .actions { margin-top: 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .status { font-size: 13px; color: var(--ok); }
+
+/* 自定义封面上传 */
+.cover-field { margin-top: 16px; }
+.cover-upload { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.cover-btn { cursor: pointer; }
+.cover-preview { width: 100%; margin-top: 10px; }
+.cover-preview img {
+  max-width: 150px; max-height: 210px; display: block;
+  border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, .08); background: #fff;
+}
