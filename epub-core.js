@@ -343,7 +343,7 @@
       '</ncx>\n';
   }
 
-  function renderOpf(chapters, meta) {
+  function renderOpf(chapters, meta, cover) {
     const uuid = (meta && meta.uuid) || genUuid();
     const title = escapeXmlAttr(meta && meta.title ? meta.title : '未命名');
     const author = escapeXmlAttr(meta && meta.author ? meta.author : '佚名');
@@ -355,6 +355,16 @@
     manifest += '    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>\n';
     manifest += '    <item id="css" href="style.css" media-type="text/css"/>\n';
     let spine = '';
+    let coverMeta = '';
+    if (cover) {
+      // EPUB3 标准：manifest 项带 properties="cover-image"；
+      // 同时写 EPUB2 兼容的 <meta name="cover">，微信读书等阅读器都认。
+      manifest += '    <item id="cover-image" href="images/cover.' + cover.ext + '" media-type="' + cover.mime + '" properties="cover-image"/>\n';
+      manifest += '    <item id="cover-page" href="cover.xhtml" media-type="application/xhtml+xml"/>\n';
+      // 封面页作为书的第一页
+      spine += '    <itemref idref="cover-page"/>\n';
+      coverMeta = '    <meta name="cover" content="cover-image"/>\n';
+    }
     chapters.forEach(function (c) {
       const cid = 'chap' + (c.index + 1);
       manifest += '    <item id="' + cid + '" href="' + c.file + '" media-type="application/xhtml+xml"/>\n';
@@ -368,11 +378,47 @@
       '    <dc:title>' + title + '</dc:title>\n' +
       '    <dc:language>' + lang + '</dc:language>\n' +
       '    <dc:creator>' + author + '</dc:creator>\n' +
+      coverMeta +
       '    <meta property="dcterms:modified">' + modified + '</meta>\n' +
       '  </metadata>\n' +
       '  <manifest>\n' + manifest + '  </manifest>\n' +
       '  <spine toc="ncx">\n' + spine + '  </spine>\n' +
       '</package>\n';
+  }
+
+  // 由上传文件推断封面扩展名与 MIME（支持 jpg/jpeg/png/webp/gif）
+  function coverInfo(cover) {
+    const byType = {
+      'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif'
+    };
+    let ext = byType[cover.type];
+    if (!ext && cover.name) {
+      const m = /\.(jpe?g|png|webp|gif)$/i.exec(cover.name);
+      if (m) ext = m[1].toLowerCase();
+    }
+    if (!ext) ext = 'jpg';
+    const byExt = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif' };
+    const mime = (cover.type && byType[cover.type]) ? cover.type : (byExt[ext] || 'image/jpeg');
+    return { ext: ext, mime: mime };
+  }
+
+  // 封面页（书的第一页），图片铺满
+  function renderCoverPage(cover) {
+    return '<?xml version="1.0" encoding="utf-8"?>\n' +
+      '<!DOCTYPE html>\n' +
+      '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="zh">\n' +
+      '<head><meta charset="utf-8"/><title>封面</title>\n' +
+      '<style>\n' +
+      'body{margin:0;padding:0;}\n' +
+      'section{margin:0;padding:0;}\n' +
+      '.cover-img{width:100%;height:auto;display:block;}\n' +
+      '</style>\n' +
+      '</head>\n' +
+      '<body>\n' +
+      '<section epub:type="cover">\n' +
+      '<img class="cover-img" src="images/cover.' + cover.ext + '" alt="封面"/>\n' +
+      '</section>\n' +
+      '</body>\n</html>\n';
   }
 
   function renderChapter(ch, meta) {
@@ -402,9 +448,11 @@
   const STYLE_CSS =
     'body{font-family:"Noto Serif CJK SC","Source Han Serif SC",Georgia,serif;' +
     'margin:0;padding:0;line-height:1.8;color:#222;}\n' +
-    'section{padding:1.2em 1.4em;}\n' +
-    'h1{font-size:1.4em;border-bottom:1px solid #ddd;padding-bottom:.3em;margin-top:0;}\n' +
-    'p{margin:0 0 1em 0;text-align:justify;}\n';
+    'section{padding:0.8em 0;}\n' +
+    'h1{font-size:1.4em;border-bottom:1px solid #ddd;padding-bottom:.3em;margin:.4em 0 .8em;}\n' +
+    // 图书精排风：首行缩进 2em（段落连成一片，消除稀疏感），不用两端对齐，章首段不缩进
+    'p{margin:0;text-indent:2em;text-align:left;}\n' +
+    'p:first-of-type{text-indent:0;}\n';
 
   /* --------------------------- 打包装配 --------------------------- */
 
@@ -421,16 +469,25 @@
     const chapters = buildChapters(text, opts.entries || [], meta);
     const tree = buildTocTree(chapters);
 
+    let cover = null;
+    if (opts.cover && opts.cover.data) {
+      cover = coverInfo(opts.cover);
+    }
+
     const zip = new JSZip();
     // mimetype 必须第一个且不被压缩
     zip.file('mimetype', 'application/epub+zip', { compression: 'STORE' });
     zip.folder('META-INF').file('container.xml', CONTAINER_XML);
 
     const oebps = zip.folder('OEBPS');
-    oebps.file('content.opf', renderOpf(chapters, meta));
+    oebps.file('content.opf', renderOpf(chapters, meta, cover));
     oebps.file('nav.xhtml', renderNav(tree, meta));
     oebps.file('toc.ncx', renderNcx(chapters, meta));
     oebps.file('style.css', STYLE_CSS);
+    if (cover) {
+      oebps.folder('images').file('cover.' + cover.ext, opts.cover.data);
+      oebps.file('cover.xhtml', renderCoverPage(cover));
+    }
     chapters.forEach(function (c) {
       oebps.file(c.file, renderChapter(c, meta));
     });
