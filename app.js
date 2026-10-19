@@ -7,7 +7,8 @@
   const state = {
     text: '',
     entries: [],
-    meta: { title: '', author: '' }
+    meta: { title: '', author: '' },
+    cover: null
   };
 
   /* ----------------------------- 设置记忆 ----------------------------- */
@@ -63,6 +64,7 @@
       $('detectedEncoding').textContent = '识别编码：' + (ENC_LABEL[res.encoding] || res.encoding);
     }
     $('title').value = (file.name || 'book').replace(/\.txt$/i, '');
+    clearCoverState(); // 换了源文本，旧封面不再匹配
     runDetect();
   }
 
@@ -71,6 +73,7 @@
     if (!v.trim()) { setStatus('粘贴内容为空', false); return; }
     state.text = v;
     $('detectedEncoding').textContent = '粘贴文本（已是 Unicode）';
+    clearCoverState();
     runDetect();
   }
 
@@ -221,7 +224,7 @@
     if (!state.text) { setStatus('请先导入文本', false); return; }
     const m = meta();
     try {
-      const zip = EpubCore.assembleEpub(JSZip, { text: state.text, entries: state.entries, meta: m });
+      const zip = EpubCore.assembleEpub(JSZip, { text: state.text, entries: state.entries, meta: m, cover: state.cover });
       zip.generateAsync({ type: 'blob', mimeType: 'application/epub+zip' }).then(function (blob) {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -257,6 +260,39 @@
   drop.addEventListener('drop', function (e) {
     const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
     if (f) loadFile(f);
+  });
+
+  /* ----------------------------- 自定义封面 ----------------------------- */
+
+  function clearCoverState() {
+    state.cover = null;
+    $('coverPreview').src = '';
+    $('coverPreviewWrap').style.display = 'none';
+    $('coverName').textContent = '';
+    $('clearCover').style.display = 'none';
+  }
+
+  $('cover').addEventListener('change', function (ev) {
+    const f = ev.target.files && ev.target.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = function () {
+      state.cover = {
+        data: new Uint8Array(reader.result),
+        type: f.type,
+        name: f.name
+      };
+      $('coverPreview').src = URL.createObjectURL(f);
+      $('coverPreviewWrap').style.display = 'block';
+      $('coverName').textContent = f.name;
+      $('clearCover').style.display = 'inline-block';
+    };
+    reader.readAsArrayBuffer(f);
+  });
+
+  $('clearCover').addEventListener('click', function () {
+    clearCoverState();
+    $('cover').value = '';
   });
 
   // 启动时恢复上次设置（编码偏好、分隔线、数字编号开关）
