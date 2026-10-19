@@ -1,0 +1,170 @@
+:root {
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --line: #e2e8f0;
+  --line-soft: #eef2f7;
+  --ink: #0f172a;
+  --text: #334155;
+  --muted: #64748b;
+  --faint: #94a3b8;
+  --brand: #2563eb;
+  --brand-d: #1d4ed8;
+  --brand-soft: #eef4ff;
+  --brand-line: #c7d6f5;
+  --ok: #16a34a;
+  --radius: 14px;
+  --radius-sm: 8px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+}
+
+/* 品牌顶栏 */
+.brandbar { height: 3px; background: var(--brand); }
+.topbar {
+  padding: 16px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand-mark {
+  width: 38px; height: 38px; border-radius: 10px;
+  background: var(--brand);
+  display: flex; align-items: center; justify-content: center;
+  flex: none;
+}
+.brand-text h1 { margin: 0; font-size: 17px; font-weight: 600; color: var(--ink); letter-spacing: .3px; }
+.brand-text .arrow { color: var(--brand); }
+
+/* 布局 */
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  padding: 24px;
+  align-items: start;
+}
+@media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+}
+
+/* 步骤徽章 */
+.step { display: flex; align-items: center; gap: 10px; margin: 4px 0 14px; }
+.step:not(:first-child) { margin-top: 18px; }
+.step-no {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--brand); color: #fff;
+  font-size: 13px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+  flex: none;
+}
+.step h2 { margin: 0; font-size: 15px; font-weight: 600; color: var(--ink); }
+
+/* 拖拽区 */
+.dropzone {
+  border: 2px dashed var(--brand-line);
+  border-radius: 10px;
+  padding: 22px;
+  text-align: center;
+  color: var(--muted);
+  background: #fbfdff;
+  transition: border-color .15s, background .15s;
+}
+.dropzone .dz-icon { display: block; margin: 0 auto 6px; }
+.dropzone.over { border-color: var(--brand); background: var(--brand-soft); }
+.link { color: var(--brand); cursor: pointer; }
+
+.paste { margin: 12px 0; }
+.paste summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+.paste textarea {
+  width: 100%; margin-top: 8px; padding: 8px;
+  border: 1px solid var(--line); border-radius: var(--radius-sm); resize: vertical;
+  font-family: inherit; font-size: 13px; color: var(--text);
+}
+
+/* 表单字段 */
+.field { margin: 10px 0; display: flex; flex-direction: column; gap: 4px; }
+.field label { font-size: 13px; color: var(--muted); }
+.field .chk { flex-direction: row; align-items: center; gap: 8px; color: var(--text); font-size: 13px; }
+.field select, .field input[type=text] {
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  font-size: 14px; color: var(--text); background: #fff;
+}
+.field select:focus, .field input[type=text]:focus,
+.paste textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* 按钮体系 */
+.btn {
+  display: inline-block; padding: 8px 14px; border: 1px solid var(--line);
+  background: #fff; border-radius: var(--radius-sm); cursor: pointer;
+  font-size: 14px; color: var(--text); transition: border-color .15s, background .15s, color .15s;
+}
+.btn:hover { border-color: var(--brand); }
+.btn.primary {
+  background: var(--brand); color: #fff; border-color: var(--brand);
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+}
+.btn.primary:hover { background: var(--brand-d); border-color: var(--brand-d); }
+.btn.primary:disabled { background: #cbd5e1; border-color: #cbd5e1; cursor: not-allowed; }
+.btn.secondary { background: #fff; color: var(--brand); border-color: var(--brand); font-weight: 500; }
+.btn.secondary:hover { background: var(--brand-soft); }
+.btn.ghost { background: #f1f5f9; }
+.btn.tiny { padding: 4px 12px; font-size: 12px; }
+
+.hint { color: var(--muted); font-size: 12px; margin: 8px 0; }
+
+/* 工具栏 */
+.toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+
+/* TOC 列表（结构由 JS 生成，此处仅样式） */
+.toc-list { max-height: 360px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px; }
+.toc-item {
+  display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 8px;
+  border-bottom: 1px solid var(--line-soft);
+  border-left: 3px solid var(--brand);
+  border-radius: 4px;
+}
+.toc-item:last-child { border-bottom: none; }
+.toc-item .lvl {
+  font-size: 11px; color: var(--brand);
+  border: 1px solid var(--brand-line); border-radius: 999px; padding: 1px 7px; flex: none;
+}
+.toc-item input[type=text] {
+  flex: 1; min-width: 0; padding: 5px 7px;
+  border: 1px solid var(--line); border-radius: 5px; font-size: 13px; color: var(--text);
+}
+.toc-item .src { font-size: 11px; color: var(--faint); flex: none; }
+.toc-item button {
+  border: 1px solid var(--line); background: #fff; border-radius: 5px; cursor: pointer;
+  width: 26px; height: 26px; line-height: 1; font-size: 12px; color: var(--muted); flex: none;
+}
+.toc-item button:hover { border-color: var(--brand); color: var(--brand); }
+
+/* 预览：多级嵌套引导线 */
+.preview-title { font-size: 14px; font-weight: 600; color: var(--ink); margin: 16px 0 8px; }
+.preview {
+  border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px;
+  background: #fbfdff; max-height: 220px; overflow: auto;
+}
+.preview > ul { list-style: none; padding-left: 0; margin: 0; }
+.preview ul ul { margin-left: 4px; padding-left: 14px; border-left: 1px solid var(--line); }
+.preview li { font-size: 13px; color: var(--text); padding: 3px 0; }
+
+.empty { color: var(--muted); font-size: 13px; }
+
+.actions { margin-top: 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.status { font-size: 13px; color: var(--ok); }
