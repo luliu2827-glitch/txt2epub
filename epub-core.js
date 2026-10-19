@@ -280,7 +280,8 @@
     for (const b of blocks) {
       const t = b.trim();
       if (!t) continue;
-      out.push('<p>' + escapeHtml(t).replace(/\r?\n/g, '<br/>') + '</p>');
+      // 段内换行合并为连续文字（不注入 <br/>），让阅读器按屏幕宽度自由重排 → 铺满页面
+      out.push('<p>' + escapeHtml(t).replace(/\r?\n/g, '') + '</p>');
     }
     return out.join('\n');
   }
