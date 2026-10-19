@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>TXT → EPUB 转换器（带目录）</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <div class="brandbar"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 5a2 2 0 0 1 2-2h6v18H6a2 2 0 0 1-2-2z"/>
+          <path d="M20 5a2 2 0 0 0-2-2h-4v18h4a2 2 0 0 0 2-2z" opacity="0.5"/>
+          <path d="M13 12h6m0 0-2-2m2 2-2 2"/>
+        </svg>
+      </span>
+      <div class="brand-text">
+        <h1>TXT <span class="arrow">→</span> EPUB</h1>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- 左：输入与设置 -->
+    <section class="panel">
+      <div class="step"><span class="step-no">1</span><h2>导入文本</h2></div>
+      <div id="drop" class="dropzone">
+        <svg class="dz-icon" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#2563eb" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 16V4m0 0L8 8m4-4 4 4"/>
+          <path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
+        </svg>
+        <p>拖入 .txt 文件，或 <label class="link">点击选择<input id="file" type="file" accept=".txt,text/plain" hidden/></label></p>
+      </div>
+      <details class="paste">
+        <summary>或粘贴文本</summary>
+        <textarea id="paste" rows="6" placeholder="在此粘贴文本内容…"></textarea>
+        <button id="usePaste" class="btn ghost">使用粘贴内容</button>
+      </details>
+
+      <div class="step"><span class="step-no">2</span><h2>转换设置</h2></div>
+      <div class="field">
+        <label>编码</label>
+        <select id="encoding">
+          <option value="auto">自动检测（推荐）</option>
+          <option value="utf-8">UTF-8</option>
+          <option value="gb18030">GB18030 / GBK（简体中文）</option>
+          <option value="utf-16">UTF-16（带 BOM，记事本「Unicode」）</option>
+          <option value="shift_jis">Shift_JIS（日文）</option>
+        </select>
+        <span id="detectedEncoding" class="hint"></span>
+      </div>
+      <div class="field">
+        <label class="chk">
+          <input id="separators" type="checkbox"/>
+          把分隔线（=== / --- / ***）也当作章节切分
+        </label>
+      </div>
+      <div class="field">
+        <label class="chk">
+          <input id="numbered" type="checkbox"/>
+          识别数字编号标题（1. / 1.1 / 2、 / 3) 等）
+        </label>
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label>书名</label>
+          <input id="title" type="text" placeholder="默认取文件名"/>
+        </div>
+        <div class="field">
+          <label>作者</label>
+          <input id="author" type="text" placeholder="佚名"/>
+        </div>
+      </div>
+      <button id="detect" class="btn secondary">检测标题</button>
+      <p id="detectInfo" class="hint"></p>
+    </section>
+
+    <!-- 右：目录校正与生成 -->
+    <section class="panel">
+      <div class="step"><span class="step-no">3</span><h2>校正目录</h2></div>
+      <div class="toolbar">
+        <button id="selectAll" class="btn tiny">全选</button>
+        <button id="selectNone" class="btn tiny">全不选</button>
+        <span class="hint">层级：▲ 升一级（更内嵌）｜▼ 降一级</span>
+      </div>
+      <div id="tocList" class="toc-list">
+        <p class="empty">尚未检测。请先导入文本并点击「检测标题」。</p>
+      </div>
+
+      <h2 class="preview-title">目录结构预览</h2>
+      <div id="preview" class="preview"><p class="empty">—</p></div>
+
+      <div class="actions">
+        <button id="generate" class="btn primary" disabled>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3v12m0 0 4-4m-4 4-4-4"/>
+            <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
+          </svg>
+          生成并下载 EPUB
+        </button>
+        <span id="status" class="status"></span>
+      </div>
+    </section>
+  </main>
+
+  <script src="vendor/jszip.min.js"></script>
+  <script src="epub-core.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
