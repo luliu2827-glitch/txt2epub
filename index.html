@@ -75,6 +75,20 @@
           <input id="author" type="text" placeholder="佚名"/>
         </div>
       </div>
+      <div class="field cover-field">
+        <label>自定义封面（可选）</label>
+        <div class="cover-upload">
+          <label class="btn ghost cover-btn">
+            选择封面图片
+            <input id="cover" type="file" accept="image/*" hidden/>
+          </label>
+          <button id="clearCover" class="btn tiny" type="button" style="display:none">清除封面</button>
+          <span id="coverName" class="hint"></span>
+        </div>
+        <div id="coverPreviewWrap" class="cover-preview" style="display:none">
+          <img id="coverPreview" alt="封面预览"/>
+        </div>
+      </div>
       <button id="detect" class="btn secondary">检测标题</button>
       <p id="detectInfo" class="hint"></p>
     </section>
