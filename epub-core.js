@@ -172,6 +172,7 @@
     opts = opts || {};
     const useSep = !!opts.useSeparators;
     const useNum = !!opts.useNumbered;
+    const customRules = Array.isArray(opts.customRules) ? opts.customRules : [];
     const lines = text.split(/\r?\n/);
     const consumed = new Set();
     const headings = [];
@@ -208,6 +209,22 @@
           source: m.source,
           include: true
         });
+        continue;
+      }
+      // 自定义规则（叠加，不替换默认）：命中则作为标题
+      for (const rule of customRules) {
+        if (rule && typeof rule.test === 'function' && rule.test(line)) {
+          headings.push({
+            id: 'h' + (idCounter++),
+            lineIndex: i,
+            raw: line,
+            level: 1,
+            text: line.trim(),
+            source: 'custom',
+            include: true
+          });
+          break;
+        }
       }
     }
     return headings;
@@ -221,7 +238,7 @@
    * @param {Array} entries 检测到的条目（可被 UI 改过 text/level/include）
    * @param {object} meta { title, author, language }
    */
-  function buildChapters(text, entries, meta) {
+  function buildChapters(text, entries, meta, mode) {
     meta = meta || {};
     const lines = text.split(/\r?\n/);
     const inc = entries
@@ -236,15 +253,22 @@
         file: 'chap' + (idx + 1) + '.xhtml',
         title: title,
         level: level,
-        body: body
+        body: body,
+        mode: mode || 'auto'
       });
     }
 
-    // 正文开头到第一个标题之间的前置内容
+    // 正文开头到第一个标题之间的前置内容 → 识别为「序言」
+    // 自动识别 楔子/引子/前言/序章/序言 等；找不到则用「序言」，直接以第一章开头则不建空序言
     if (inc.length && inc[0].lineIndex > 0) {
-      const pre = lines.slice(0, inc[0].lineIndex).join('\n');
-      if (pre.trim() !== '') {
-        pushChapter(meta.title || '正文', 1, pre);
+      const preLines = lines.slice(0, inc[0].lineIndex);
+      const preText = preLines.join('\n');
+      if (preText.trim() !== '') {
+        const headingHint = preLines.find(function (l) {
+          return /^\s*(楔子|引子|前言|序言|序章|序|后记|尾声|外传)\s*$/.test(l);
+        });
+        const preTitle = headingHint ? headingHint.trim() : (meta.title || '序言');
+        pushChapter(preTitle, 1, preText);
       }
     }
 
@@ -274,11 +298,26 @@
 
   /* --------------------------- XML 渲染 --------------------------- */
 
-  function bodyToHtml(body) {
-    const blocks = body.split(/\r?\n\s*\r?\n/);
+  // 段落切分模式：
+  //  'block'  按空行分块（默认旧行为，适合"空行分段"的文件）
+  //  'line'   每行一段（适合"每行一段、段间无空行"的网文）
+  //  'auto'   启发式：空行极少时按行，否则按块 —— 对用户现有文件零副作用
+  function bodyToHtml(body, mode) {
+    const lines = body.split(/\r?\n/);
+    let paras;
+    if (mode === 'line') {
+      paras = lines;
+    } else if (mode === 'block') {
+      paras = body.split(/\r?\n\s*\r?\n/);
+    } else { // auto
+      let blank = 0;
+      for (const ln of lines) if (ln.trim() === '') blank++;
+      const useLine = blank === 0 || (lines.length > 3 && (blank / lines.length) < 0.04);
+      paras = useLine ? lines : body.split(/\r?\n\s*\r?\n/);
+    }
     const out = [];
-    for (const b of blocks) {
-      const t = b.trim();
+    for (const p of paras) {
+      const t = (typeof p === 'string') ? p.trim() : '';
       if (!t) continue;
       // 段内换行合并为连续文字（不注入 <br/>），让阅读器按屏幕宽度自由重排 → 铺满页面
       out.push('<p>' + escapeHtml(t).replace(/\r?\n/g, '') + '</p>');
@@ -432,7 +471,7 @@
       '<body>\n' +
       '<section epub:type="chapter">\n' +
       '<h1>' + title + '</h1>\n' +
-      bodyToHtml(ch.body) + '\n' +
+      bodyToHtml(ch.body, ch.mode) + '\n' +
       '</section>\n' +
       '</body>\n</html>\n';
   }
@@ -466,7 +505,9 @@
     const meta = Object.assign({ title: '未命名', author: '佚名', language: 'zh' }, opts.meta || {});
     if (!meta.uuid) meta.uuid = genUuid();
 
-    const chapters = buildChapters(text, opts.entries || [], meta);
+    const chapters = (opts.chapters && opts.chapters.length)
+      ? opts.chapters
+      : buildChapters(text, opts.entries || [], meta, opts.paragraphMode || 'auto');
     const tree = buildTocTree(chapters);
 
     let cover = null;
@@ -495,11 +536,76 @@
     return zip;
   }
 
+  /* --------------------------- 自定义规则：示例→解析 --------------------------- */
+
+  // 从用户给的「示例标题」反推匹配规则（叠加到默认识别，不替换默认）。
+  // 启发式：示例含数字编号即可泛化 —— 前缀字面 + 编号(.+?) + 后缀（末尾标题词泛化为 .*）。
+  // 例：「第一章 风起云涌」→ /^第(.+?)章 (.*)$/，匹配所有「第X章 …」
+  function parseCustomRule(example) {
+    const s = String(example || '').trim();
+    if (!s) return null;
+    const numRe = /[0-9]+|[零一二三四五六七八九十百千万〇]+/;
+    const idx = s.search(numRe);
+    if (idx < 0) return null; // 无数字则无法泛化编号
+    const prefix = s.slice(0, idx).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const numMatch = s.slice(idx).match(numRe)[0];
+    const suffixRaw = s.slice(idx + numMatch.length);
+    // 后缀里：若末尾存在标题词且前面有分隔符/空格，则把标题词泛化为 (.*)
+    let sepIdx = -1;
+    for (let k = suffixRaw.length - 1; k >= 0; k--) {
+      if (/[\s：:、，。.,\-—]/.test(suffixRaw[k])) { sepIdx = k; break; }
+    }
+    let fixed, tail;
+    if (sepIdx >= 0) {
+      fixed = suffixRaw.slice(0, sepIdx + 1);
+      tail = '(.*)';
+    } else {
+      fixed = suffixRaw;
+      tail = '';
+    }
+    const pattern = '^' + prefix + '(.+?)' + fixed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + tail + '$';
+    let rx;
+    try { rx = new RegExp(pattern); } catch (e) { return null; }
+    return {
+      source: 'custom',
+      example: s,
+      pattern: pattern,
+      test: function (line) { return rx.test(String(line)); }
+    };
+  }
+
+  /* --------------------------- 长文档拆分 --------------------------- */
+
+  // 把整本书章节按策略切分为多本。返回数组，每项为该本的 chapters 子数组。
+  function splitBooks(chapters, opts) {
+    opts = opts || {};
+    const mode = opts.mode || 'volume';
+    if ((mode === 'count' || mode === 'size') && opts.count > 1) {
+      const n = Math.max(1, opts.count | 0);
+      const books = [];
+      for (let i = 0; i < chapters.length; i += n) books.push(chapters.slice(i, i + n));
+      return books;
+    }
+    if (mode === 'volume') {
+      const books = [];
+      let cur = [];
+      chapters.forEach(function (ch) {
+        const isVol = /^(卷|部|第.+?[卷部])/.test(ch.title);
+        if (isVol && cur.length) { books.push(cur); cur = []; }
+        cur.push(ch);
+      });
+      if (cur.length) books.push(cur);
+      return books.length > 1 ? books : [chapters];
+    }
+    return [chapters];
+  }
+
   /* --------------------------- 导出 --------------------------- */
 
   const api = {
     escapeHtml: escapeHtml,
     isSeparator: isSeparator,
+    bodyToHtml: bodyToHtml,
     matchHeading: matchHeading,
     detect: detect,
     buildChapters: buildChapters,
@@ -507,7 +613,9 @@
     assembleEpub: assembleEpub,
     decodeBuffer: decodeBuffer,
     countReplacement: countReplacement,
-    cjkScore: cjkScore
+    cjkScore: cjkScore,
+    parseCustomRule: parseCustomRule,
+    splitBooks: splitBooks
   };
 
   if (typeof module !== 'undefined' && module.exports) {
