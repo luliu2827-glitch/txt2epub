@@ -179,3 +179,28 @@ body {
   border: 1px solid var(--line); border-radius: 8px;
   box-shadow: 0 2px 8px rgba(15, 23, 42, .08); background: #fff;
 }
+
+/* 自定义规则 */
+.rule-input { display: flex; gap: 8px; margin-top: 4px; }
+.rule-input input[type=text] {
+  flex: 1; min-width: 0; padding: 7px 9px;
+  border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: 13px; color: var(--text); background: #fff;
+}
+.rule-input input[type=text]:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+.custom-rules { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.rule-item {
+  display: flex; align-items: center; gap: 8px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 6px; background: #fbfdff; font-size: 12px;
+}
+.rule-item code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.rule-item .rule-hint { color: var(--muted); flex: none; }
+.rule-item button {
+  border: 1px solid var(--line); background: #fff; border-radius: 5px; cursor: pointer;
+  width: 26px; height: 26px; line-height: 1; font-size: 12px; color: var(--muted); flex: none;
+}
+.rule-item button:hover { border-color: var(--brand); color: var(--brand); }
+
+/* 拆分 */
+.split-box { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.split-box select { padding: 7px 9px; border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: 13px; color: var(--text); background: #fff; }
+.mini-input { width: 72px; padding: 7px 9px; border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: 13px; color: var(--text); background: #fff; }
