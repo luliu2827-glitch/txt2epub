@@ -65,6 +65,23 @@
           识别数字编号标题（1. / 1.1 / 2、 / 3) 等）
         </label>
       </div>
+      <div class="field">
+        <label>段落切分</label>
+        <select id="paragraphMode">
+          <option value="auto">自动（按空行/按行自适应）</option>
+          <option value="block">按空行分段</option>
+          <option value="line">每行一段</option>
+        </select>
+      </div>
+      <div class="field custom-rule">
+        <label>自定义章节规则（可选）</label>
+        <div class="rule-input">
+          <input id="customExample" type="text" placeholder="粘贴一行示例标题，如：第一章 风起云涌"/>
+          <button id="addRule" class="btn tiny" type="button">添加</button>
+        </div>
+        <p class="hint">识别不了的特殊标题？贴一行示例，工具自动学会同类标题（叠加在默认规则之上，不替换默认）。</p>
+        <div id="customRules" class="custom-rules"></div>
+      </div>
       <div class="grid2">
         <div class="field">
           <label>书名</label>
@@ -82,6 +99,7 @@
             选择封面图片
             <input id="cover" type="file" accept="image/*" hidden/>
           </label>
+          <button id="autoCover" class="btn tiny" type="button">生成文字封面</button>
           <button id="clearCover" class="btn tiny" type="button" style="display:none">清除封面</button>
           <span id="coverName" class="hint"></span>
         </div>
@@ -108,6 +126,18 @@
       <h2 class="preview-title">目录结构预览</h2>
       <div id="preview" class="preview"><p class="empty">—</p></div>
 
+      <h2 class="preview-title">拆分（长书适用）</h2>
+      <div class="split-box">
+        <select id="splitMode">
+          <option value="none">不拆分（整本一本）</option>
+          <option value="volume">按卷/部拆分</option>
+          <option value="count">每 N 章一本</option>
+        </select>
+        <input id="splitCount" type="number" min="1" value="50" class="mini-input"/>
+        <span class="hint">章/本</span>
+        <input id="splitPrefix" type="text" placeholder="文件名前缀（默认书名）" class="mini-input"/>
+      </div>
+
       <div class="actions">
         <button id="generate" class="btn primary" disabled>
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -116,6 +146,7 @@
           </svg>
           生成并下载 EPUB
         </button>
+        <button id="generateSplit" class="btn secondary" type="button" disabled>生成多本并打包 ZIP</button>
         <span id="status" class="status"></span>
       </div>
     </section>
