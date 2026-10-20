@@ -8,7 +8,8 @@
     text: '',
     entries: [],
     meta: { title: '', author: '' },
-    cover: null
+    cover: null,
+    customRules: []
   };
 
   /* ----------------------------- 设置记忆 ----------------------------- */
@@ -23,6 +24,7 @@
       if (s && typeof s.encoding === 'string') $('encoding').value = s.encoding;
       if (s && typeof s.separators === 'boolean') $('separators').checked = s.separators;
       if (s && typeof s.numbered === 'boolean') $('numbered').checked = s.numbered;
+      if (s && typeof s.paragraphMode === 'string') $('paragraphMode').value = s.paragraphMode;
     } catch (e) { /* 存储损坏则忽略，用默认值 */ }
   }
 
@@ -31,7 +33,8 @@
       const s = {
         encoding: $('encoding').value,
         separators: $('separators').checked,
-        numbered: $('numbered').checked
+        numbered: $('numbered').checked,
+        paragraphMode: $('paragraphMode').value
       };
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
     } catch (e) { /* 隐私模式等场景 storage 不可用，静默跳过 */ }
@@ -83,11 +86,13 @@
     if (!state.text) { setStatus('请先导入文本', false); return; }
     state.entries = EpubCore.detect(state.text, {
       useSeparators: $('separators').checked,
-      useNumbered: $('numbered').checked
+      useNumbered: $('numbered').checked,
+      customRules: state.customRules
     });
     renderToc();
     renderPreview();
     $('generate').disabled = false;
+    $('generateSplit').disabled = false;
     const n = state.entries.length;
     const bits = [];
     bits.push('第X章 / Chapter / Markdown（默认开启）');
@@ -208,6 +213,95 @@
     if (state.text) runDetect();
   });
 
+  // 段落切分模式记忆
+  $('paragraphMode').addEventListener('change', function () {
+    saveSettings();
+  });
+
+  /* ----------------------------- 自定义规则 ----------------------------- */
+
+  function renderCustomRules() {
+    const box = $('customRules');
+    if (!state.customRules.length) { box.innerHTML = ''; return; }
+    let html = '';
+    state.customRules.forEach(function (r, i) {
+      let n = 0;
+      if (state.text) {
+        state.text.split(/\r?\n/).forEach(function (ln) { if (r.test(ln)) n++; });
+      }
+      html += '<div class="rule-item" data-i="' + i + '">'
+        + '<code>' + escapeHtml(r.pattern) + '</code>'
+        + '<span class="rule-hint">命中 ' + n + ' 行</span>'
+        + '<button data-act="del-rule" title="删除">✕</button>'
+        + '</div>';
+    });
+    box.innerHTML = html;
+  }
+
+  $('addRule').addEventListener('click', function () {
+    const ex = $('customExample').value.trim();
+    if (!ex) { setStatus('请先粘贴一行示例标题', false); return; }
+    const rule = EpubCore.parseCustomRule(ex);
+    if (!rule) { setStatus('示例需包含数字编号（如「第一章 标题」），纯文字标题无需自定义', false); return; }
+    state.customRules.push(rule);
+    $('customExample').value = '';
+    if (state.text) runDetect();
+    renderCustomRules();
+    setStatus('已添加规则：' + rule.pattern, true);
+  });
+
+  $('customRules').addEventListener('click', function (ev) {
+    const btn = ev.target.closest('button[data-act="del-rule"]');
+    if (!btn) return;
+    const item = btn.closest('.rule-item');
+    const i = parseInt(item.getAttribute('data-i'), 10);
+    state.customRules.splice(i, 1);
+    if (state.text) runDetect();
+    renderCustomRules();
+  });
+
+  /* ----------------------------- 长文档拆分下载 ----------------------------- */
+
+  $('generateSplit').addEventListener('click', function () {
+    if (!state.text) { setStatus('请先导入文本', false); return; }
+    const m = meta();
+    const pmode = $('paragraphMode').value;
+    const mode = $('splitMode').value;
+    const allChapters = EpubCore.buildChapters(state.text, state.entries, m, pmode);
+    const books = EpubCore.splitBooks(allChapters, {
+      mode: mode,
+      count: parseInt($('splitCount').value, 10) || 50
+    });
+    const outer = new JSZip();
+    const prefix = ($('splitPrefix').value.trim() || m.title || 'book');
+    let done = 0;
+    const total = books.length;
+    books.forEach(function (bk, bi) {
+      const bMeta = Object.assign({}, m, {
+        title: total > 1 ? (m.title + '（' + (bi + 1) + '/' + total + '）') : m.title
+      });
+      const zip = EpubCore.assembleEpub(JSZip, {
+        chapters: bk, meta: bMeta, cover: state.cover, paragraphMode: pmode
+      });
+      zip.generateAsync({ type: 'uint8array' }).then(function (bytes) {
+        outer.file(prefix + '-' + String(bi + 1).padStart(2, '0') + '.epub', bytes);
+        done++;
+        if (done === total) {
+          outer.generateAsync({ type: 'blob', mimeType: 'application/zip' }).then(function (blob) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = prefix + '.zip';
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+            setStatus('已生成 ' + total + ' 本并打包：' + a.download + '（' + (blob.size / 1024).toFixed(1) + ' KB）', true);
+          });
+        }
+      }).catch(function (err) {
+        setStatus('拆分生成失败：' + err.message, false);
+      });
+    });
+  });
+
   $('encoding').addEventListener('change', function () {
     saveSettings();
   });
@@ -224,7 +318,7 @@
     if (!state.text) { setStatus('请先导入文本', false); return; }
     const m = meta();
     try {
-      const zip = EpubCore.assembleEpub(JSZip, { text: state.text, entries: state.entries, meta: m, cover: state.cover });
+      const zip = EpubCore.assembleEpub(JSZip, { text: state.text, entries: state.entries, meta: m, cover: state.cover, paragraphMode: $('paragraphMode').value });
       zip.generateAsync({ type: 'blob', mimeType: 'application/epub+zip' }).then(function (blob) {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -272,22 +366,101 @@
     $('clearCover').style.display = 'none';
   }
 
+  // 上传图自动压缩：等比缩到最长边 ≤1000px，导出 jpeg(q0.85)，防止 epub 体积膨胀
+  function fileToCompressedCover(file) {
+    return new Promise(function (resolve, reject) {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = function () {
+        const MAX = 1000;
+        let width = img.naturalWidth, height = img.naturalHeight;
+        if (width > MAX || height > MAX) {
+          const s = Math.min(MAX / width, MAX / height);
+          width = Math.round(width * s);
+          height = Math.round(height * s);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(function (blob) {
+          if (!blob) { URL.revokeObjectURL(url); reject(new Error('编码失败')); return; }
+          blob.arrayBuffer().then(function (ab) {
+            URL.revokeObjectURL(url);
+            resolve({ data: new Uint8Array(ab), type: blob.type, name: file.name });
+          }).catch(reject);
+        }, 'image/jpeg', 0.85);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('图片无法读取')); };
+      img.src = url;
+    });
+  }
+
+  function wrapText(ctx, text, x, y, maxW, lh) {
+    const chars = Array.from(text || '');
+    let line = '', yy = y;
+    for (const ch of chars) {
+      if (ctx.measureText(line + ch).width > maxW && line) {
+        ctx.fillText(line, x, yy);
+        line = ch; yy += lh;
+      } else { line += ch; }
+    }
+    if (line) ctx.fillText(line, x, yy);
+  }
+
+  // 纯前端文字封面：深蓝渐变底 + 书名（自动换行）+ 作者
+  function generateTextCover(title, author) {
+    return new Promise(function (resolve) {
+      const w = 600, h = 800;
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      const g = ctx.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, '#1e3a8a');
+      g.addColorStop(1, '#0f172a');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 46px serif';
+      wrapText(ctx, title || '未命名', w / 2, h / 2 - 30, w - 90, 58);
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = '24px serif';
+      ctx.fillText(author || '佚名', w / 2, h / 2 + 70);
+      canvas.toBlob(function (b) {
+        b.arrayBuffer().then(function (ab) {
+          resolve({ data: new Uint8Array(ab), type: 'image/png', name: 'auto-cover.png' });
+        });
+      }, 'image/png');
+    });
+  }
+
   $('cover').addEventListener('change', function (ev) {
     const f = ev.target.files && ev.target.files[0];
     if (!f) return;
-    const reader = new FileReader();
-    reader.onload = function () {
-      state.cover = {
-        data: new Uint8Array(reader.result),
-        type: f.type,
-        name: f.name
-      };
-      $('coverPreview').src = URL.createObjectURL(f);
+    fileToCompressedCover(f).then(function (cov) {
+      state.cover = cov;
+      const url = URL.createObjectURL(new Blob([cov.data], { type: cov.type }));
+      $('coverPreview').src = url;
       $('coverPreviewWrap').style.display = 'block';
-      $('coverName').textContent = f.name;
+      $('coverName').textContent = f.name + '（已压缩至 ' + cov.data.length + ' 字节）';
       $('clearCover').style.display = 'inline-block';
-    };
-    reader.readAsArrayBuffer(f);
+    }).catch(function (err) {
+      setStatus('封面处理失败：' + err.message, false);
+    });
+  });
+
+  // 自动生成文字封面（无图时）：书名+作者画到 Canvas 导出 PNG
+  $('autoCover').addEventListener('click', function () {
+    generateTextCover(meta().title, meta().author).then(function (cov) {
+      state.cover = cov;
+      const url = URL.createObjectURL(new Blob([cov.data], { type: cov.type }));
+      $('coverPreview').src = url;
+      $('coverPreviewWrap').style.display = 'block';
+      $('coverName').textContent = '自动文字封面';
+      $('clearCover').style.display = 'inline-block';
+    });
   });
 
   $('clearCover').addEventListener('click', function () {
