@@ -126,6 +126,26 @@
       <h2 class="preview-title">目录结构预览</h2>
       <div id="preview" class="preview"><p class="empty">—</p></div>
 
+      <h2 class="preview-title">批量改写标题</h2>
+      <div class="batch-box">
+        <div class="batch-row">
+          <button id="volRemove" class="btn tiny" type="button">去除所有「第X卷」前缀</button>
+          <button id="volAdd" class="btn tiny" type="button">为各卷自动加「第X卷」前缀</button>
+          <span id="volHint" class="hint"></span>
+        </div>
+        <div class="batch-row">
+          <button id="applyManualVol" class="btn tiny" type="button">按标记加卷前缀</button>
+          <span class="hint">先在上方可校正标题栏里，点标题前的「卷」字标记每卷起点（适用于连续编号的书）</span>
+        </div>
+        <div class="batch-row">
+          <input id="findText" type="text" placeholder="查找（勾选右侧可用正则）" class="batch-input"/>
+          <input id="replaceText" type="text" placeholder="替换为" class="batch-input"/>
+          <label class="chk small"><input id="findRegex" type="checkbox"/>正则</label>
+          <button id="applyReplace" class="btn tiny" type="button">应用替换</button>
+        </div>
+        <p class="hint">改写只影响目录与章节标题显示，不改原文件。每次操作在「已识别标题」基础上叠加；想重来点一次「检测标题」即可。</p>
+      </div>
+
       <h2 class="preview-title">拆分（长书适用）</h2>
       <div class="split-box">
         <select id="splitMode">
