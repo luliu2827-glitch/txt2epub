@@ -143,6 +143,10 @@
           <label class="chk small"><input id="findRegex" type="checkbox"/>正则</label>
           <button id="applyReplace" class="btn tiny" type="button">应用替换</button>
         </div>
+        <div class="hint regex-hint" id="regexHint" style="display:none">
+          <div>已启用正则模式：查找框填写 JavaScript 正则表达式（自动全局匹配）。示例：把“第二卷 风起云涌”变成“卷二 风起云涌”→ 查找填“第([一二三四五六七八九十百千两\d]+)卷”，替换为填“卷$1”。</div>
+          <div style="margin-top:6px">说明：查找里的圆括号 () 是捕获组，会把卷号暂存；替换里的 $1 就是取回它（也可在 $1 前后自由加字）；替换为留空则删除匹配部分。</div>
+        </div>
         <p class="hint">改写只影响目录与章节标题显示，不改原文件。每次操作在「已识别标题」基础上叠加；想重来点一次「检测标题」即可。</p>
       </div>
 
