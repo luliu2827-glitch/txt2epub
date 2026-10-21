@@ -308,6 +308,11 @@
     setStatus('已按 ' + state.manualVolMarkers.length + ' 个标记加卷前缀', true);
   });
 
+  // 勾选「正则」时显示正则用法提示
+  $('findRegex').addEventListener('change', function () {
+    $('regexHint').style.display = this.checked ? 'block' : 'none';
+  });
+
   // 查找替换：字面或正则，作用于所有已识别标题文本
   $('applyReplace').addEventListener('click', function () {
     if (!state.entries.length) { setStatus('请先检测标题', false); return; }
