@@ -9,7 +9,8 @@
     entries: [],
     meta: { title: '', author: '' },
     cover: null,
-    customRules: []
+    customRules: [],
+    manualVolMarkers: []
   };
 
   /* ----------------------------- 设置记忆 ----------------------------- */
@@ -84,6 +85,7 @@
 
   function runDetect() {
     if (!state.text) { setStatus('请先导入文本', false); return; }
+    state.manualVolMarkers = [];
     state.entries = EpubCore.detect(state.text, {
       useSeparators: $('separators').checked,
       useNumbered: $('numbered').checked,
@@ -101,6 +103,11 @@
     $('detectInfo').textContent = n
       ? '检测到 ' + n + ' 个候选标题。识别规则：' + bits.join('；') + '。'
       : '未检测到明显标题，将按单章节处理（整本为一个章节）。';
+    // 卷分析提示
+    const vol = EpubCore.analyzeVolumes(state.entries);
+    $('volHint').textContent = vol.resets >= 2
+      ? '检测到 ' + vol.resets + ' 处卷重置（每卷从第一章开始），可一键统一卷前缀。'
+      : '';
     setStatus('', true);
   }
 
@@ -111,8 +118,10 @@
       return;
     }
     let html = '';
+    const markers = state.manualVolMarkers || [];
     state.entries.forEach(function (e) {
       const indent = Math.max(0, e.level - 1) * 22;
+      const isVol = markers.indexOf(e.id) >= 0;
       html +=
         '<div class="toc-item" style="margin-left:' + indent + 'px" data-id="' + e.id + '">' +
         '<input type="checkbox" ' + (e.include ? 'checked' : '') + ' data-act="toggle"/>' +
@@ -121,6 +130,7 @@
         '<button data-act="lvl-down" title="降一级">▼</button>' +
         '<input type="text" value="' + escapeAttr(e.text) + '" data-act="text"/>' +
         '<span class="src">' + e.source + '</span>' +
+        '<button data-act="vol-start" title="标记为卷起点（手动分卷用）" class="' + (isVol ? 'vol-on' : '') + '">卷</button>' +
         '<button data-act="del" title="删除">✕</button>' +
         '</div>';
     });
@@ -171,6 +181,13 @@
     const act = btn.getAttribute('data-act');
     if (act === 'lvl-up') e.level = Math.min(6, e.level + 1);
     else if (act === 'lvl-down') e.level = Math.max(1, e.level - 1);
+    else if (act === 'vol-start') {
+      const i = state.manualVolMarkers.indexOf(id);
+      if (i >= 0) state.manualVolMarkers.splice(i, 1);
+      else state.manualVolMarkers.push(id);
+      renderToc();
+      return; // 仅切换标记，无需刷新预览
+    }
     else if (act === 'del') state.entries = state.entries.filter(function (x) { return x.id !== id; });
     renderToc();
     renderPreview();
@@ -258,6 +275,52 @@
     state.customRules.splice(i, 1);
     if (state.text) runDetect();
     renderCustomRules();
+  });
+
+  /* ----------------------------- 批量改写标题 ----------------------------- */
+
+  // 一键去除所有「第X卷」前缀（解决"只有第二卷带前缀"的不一致）
+  $('volRemove').addEventListener('click', function () {
+    if (!state.entries.length) { setStatus('请先检测标题', false); return; }
+    state.entries = EpubCore.transformTitles(state.entries, [{ type: 'removeVolumePrefix' }]);
+    renderToc(); renderPreview();
+    setStatus('已去除所有「第X卷」前缀', true);
+  });
+
+  // 一键为各卷自动加「第X卷」前缀（基于"每卷从第一章开始"自动判定卷边界）
+  $('volAdd').addEventListener('click', function () {
+    if (!state.entries.length) { setStatus('请先检测标题', false); return; }
+    const vol = EpubCore.analyzeVolumes(state.entries);
+    if (vol.resets < 2) {
+      setStatus('未检测到多卷重置（每卷都从第一章开始），无需自动加卷。如需仍可强制添加，请用查找替换。', false);
+      return;
+    }
+    state.entries = EpubCore.transformTitles(state.entries, [{ type: 'autoAddVolume' }]);
+    renderToc(); renderPreview();
+    setStatus('已为 ' + vol.resets + ' 卷自动加「第X卷」前缀', true);
+  });
+
+  // 按手动标记加卷前缀（兜底：连续编号、无法自动判定卷边界的书）
+  $('applyManualVol').addEventListener('click', function () {
+    if (!state.manualVolMarkers.length) { setStatus('请先在标题前点「卷」标记卷起点', false); return; }
+    state.entries = EpubCore.transformTitles(state.entries, [{ type: 'manualVolume', markers: state.manualVolMarkers.slice() }]);
+    renderToc(); renderPreview();
+    setStatus('已按 ' + state.manualVolMarkers.length + ' 个标记加卷前缀', true);
+  });
+
+  // 查找替换：字面或正则，作用于所有已识别标题文本
+  $('applyReplace').addEventListener('click', function () {
+    if (!state.entries.length) { setStatus('请先检测标题', false); return; }
+    const f = $('findText').value;
+    if (f === '') { setStatus('请填写查找内容', false); return; }
+    const op = { type: 'replace', find: f, replace: $('replaceText').value, regex: $('findRegex').checked };
+    try {
+      state.entries = EpubCore.transformTitles(state.entries, [op]);
+      renderToc(); renderPreview();
+      setStatus('已应用替换：' + f + ' → ' + ($('replaceText').value || '（空）'), true);
+    } catch (e) {
+      setStatus('替换失败：' + e.message, false);
+    }
   });
 
   /* ----------------------------- 长文档拆分下载 ----------------------------- */
