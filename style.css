@@ -204,3 +204,17 @@ body {
 .split-box { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
 .split-box select { padding: 7px 9px; border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: 13px; color: var(--text); background: #fff; }
 .mini-input { width: 72px; padding: 7px 9px; border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: 13px; color: var(--text); background: #fff; }
+
+/* 批量改写标题 */
+.batch-box {
+  border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+  background: #fbfdff; display: flex; flex-direction: column; gap: 10px;
+}
+.batch-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.batch-input {
+  flex: 1; min-width: 120px; padding: 7px 9px; border: 1px solid var(--line);
+  border-radius: var(--radius-sm); font-size: 13px; color: var(--text); background: #fff;
+}
+.batch-input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+.chk.small { flex-direction: row; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); }
+.toc-item button.vol-on { background: var(--brand); color: #fff; border-color: var(--brand); }
