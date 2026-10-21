@@ -600,6 +600,97 @@
     return [chapters];
   }
 
+  /* --------------------------- 批量改写标题 --------------------------- */
+
+  // 中文/阿拉伯数字互转（覆盖 零~九十九，足够网文章节编号使用）
+  const CN_DIGITS = {零:0,一:1,二:2,两:2,三:3,四:4,五:5,六:6,七:7,八:8,九:9,十:10,百:100,千:1000};
+  function cnToNum(s) {
+    if (/^[0-9]+$/.test(s)) return parseInt(s, 10);
+    const map = CN_DIGITS;
+    if (s === '十') return 10;
+    if (s.length === 2) {
+      if (s[0] === '十') return 10 + (map[s[1]] || 0);
+      if (s[1] === '十') return (map[s[0]] || 0) * 10;
+      return (map[s[0]] || 0) * 10 + (map[s[1]] || 0);
+    }
+    if (s.length === 3 && s[1] === '十') return (map[s[0]] || 0) * 10 + (map[s[2]] || 0);
+    return map[s] !== undefined ? map[s] : NaN;
+  }
+  function numToCn(n) {
+    const d = ['零','一','二','三','四','五','六','七','八','九'];
+    if (n <= 0) return String(n);
+    if (n < 10) return d[n];
+    if (n < 20) return '十' + (n > 10 ? d[n % 10] : '');
+    if (n < 100) return d[Math.floor(n / 10)] + '十' + (n % 10 ? d[n % 10] : '');
+    return String(n);
+  }
+
+  // 是否为「某卷的起始章节」：第X章/回/节… 且 X 解析为 1（每卷从第一章重新开始即卷边界）
+  function isStartChapter(text) {
+    const m = /第\s*([0-9零一二三四五六七八九十百千两]+)\s*[章回节]/i.exec(String(text || ''));
+    if (!m) return false;
+    return cnToNum(m[1]) === 1;
+  }
+
+  // 去掉标题开头的「第X卷 」前缀（兼容空格/标点变体）
+  function stripVolumePrefix(text) {
+    return String(text || '').replace(/^第\s*[0-9零一二三四五六七八九十百千两]+\s*卷\s*[,，。、:：\s]*/, '');
+  }
+  function addVolumePrefix(text, volNum) {
+    return '第' + numToCn(volNum) + '卷 ' + stripVolumePrefix(text);
+  }
+
+  // 分析：是否存在多卷重置（起始章出现 ≥2 次即判定为分卷书）
+  function analyzeVolumes(entries) {
+    let resets = 0;
+    entries.forEach(function (e) {
+      if (e.include !== false && isStartChapter(e.text)) resets++;
+    });
+    return { resets: resets, needsVolumeFix: resets >= 2 };
+  }
+
+  // 批量改写标题：按顺序应用 ops，返回新的 entries 数组（仅复制并改写 text 字段，原数组不变）
+  // op 类型：
+  //   {type:'removeVolumePrefix'}                  去除每条标题开头的「第X卷 」
+  //   {type:'autoAddVolume'}                       自动检测起始章重置点，按卷加 「第X卷 」前缀
+  //   {type:'manualVolume', markers:[id,...]}      指定 id 为卷起点，按标记顺序加前缀（兜底：连续编号书）
+  //   {type:'replace', find, replace, regex}       查找替换（字面或正则）
+  function transformTitles(entries, ops) {
+    const out = entries.map(function (e) { return Object.assign({}, e, { text: e.text }); });
+    (ops || []).forEach(function (op) {
+      if (!op) return;
+      if (op.type === 'removeVolumePrefix') {
+        out.forEach(function (e) { e.text = stripVolumePrefix(e.text); });
+      } else if (op.type === 'autoAddVolume') {
+        let vol = 0, started = false;
+        out.forEach(function (e) {
+          if (e.include !== false && isStartChapter(e.text)) { vol++; started = true; }
+          if (started) e.text = addVolumePrefix(e.text, vol);
+        });
+      } else if (op.type === 'manualVolume') {
+        const set = new Set(op.markers || []);
+        let vol = 0;
+        out.forEach(function (e) {
+          if (set.has(e.id)) vol++;
+          if (vol > 0) e.text = addVolumePrefix(e.text, vol);
+        });
+      } else if (op.type === 'replace') {
+        if (op.regex) {
+          let rx;
+          try { rx = new RegExp(op.find, 'g'); } catch (e) { return; }
+          out.forEach(function (e) {
+            try { e.text = e.text.replace(rx, op.replace || ''); } catch (e2) { /* ignore */ }
+          });
+        } else {
+          out.forEach(function (e) {
+            if (op.find != null && op.find !== '') e.text = e.text.split(op.find).join(op.replace || '');
+          });
+        }
+      }
+    });
+    return out;
+  }
+
   /* --------------------------- 导出 --------------------------- */
 
   const api = {
@@ -615,7 +706,12 @@
     countReplacement: countReplacement,
     cjkScore: cjkScore,
     parseCustomRule: parseCustomRule,
-    splitBooks: splitBooks
+    splitBooks: splitBooks,
+    analyzeVolumes: analyzeVolumes,
+    transformTitles: transformTitles,
+    cnToNum: cnToNum,
+    numToCn: numToCn,
+    isStartChapter: isStartChapter
   };
 
   if (typeof module !== 'undefined' && module.exports) {
