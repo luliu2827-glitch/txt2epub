@@ -485,8 +485,7 @@
     '</container>\n';
 
   const STYLE_CSS =
-    'body{font-family:"Noto Serif CJK SC","Source Han Serif SC",Georgia,serif;' +
-    'margin:0;padding:0;line-height:1.8;color:#222;}\n' +
+    'body{margin:0;padding:0;line-height:1.8;color:#222;}\n' +
     'section{padding:0.8em 0;}\n' +
     'h1{font-size:1.4em;border-bottom:1px solid #ddd;padding-bottom:.3em;margin:.4em 0 .8em;}\n' +
     // 图书精排风：首行缩进 2em（段落连成一片，消除稀疏感），不用两端对齐，章首段不缩进
