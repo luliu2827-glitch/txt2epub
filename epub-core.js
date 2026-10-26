@@ -240,6 +240,8 @@
    */
   function buildChapters(text, entries, meta, mode) {
     meta = meta || {};
+    // auto 在整书级别解析一次，得到确定的 line/block；其余模式原样透传
+    const resolvedMode = (mode === 'auto' || !mode) ? resolveParagraphMode(text) : mode;
     const lines = text.split(/\r?\n/);
     const inc = entries
       .filter(function (e) { return e.include; })
@@ -254,7 +256,7 @@
         title: title,
         level: level,
         body: body,
-        mode: mode || 'auto'
+        mode: resolvedMode
       });
     }
 
@@ -306,10 +308,11 @@
     const lines = body.split(/\r?\n/);
     let paras;
     if (mode === 'line') {
-      paras = lines;
+      // 去掉行首缩进（全角/半角空格、Tab），避免与 CSS 的 text-indent:2em 叠加成双缩进
+      paras = lines.map(function (l) { return l.replace(/^[\u3000 \t]+/, ''); });
     } else if (mode === 'block') {
       paras = body.split(/\r?\n\s*\r?\n/);
-    } else { // auto
+    } else { // auto（兜底：理论上 buildChapters 已先解析为 line/block）
       let blank = 0;
       for (const ln of lines) if (ln.trim() === '') blank++;
       const useLine = blank === 0 || (lines.length > 3 && (blank / lines.length) < 0.04);
@@ -323,6 +326,47 @@
       out.push('<p>' + escapeHtml(t).replace(/\r?\n/g, '') + '</p>');
     }
     return out.join('\n');
+  }
+
+  // 自动判定分段模式（整书级别，一次判定，避免逐章抖动）
+  // 返回 'line'（每行一段）或 'block'（空行分块）。
+  // 设计目标：
+  //   - 网文「每行一段、段间无空行，空行只出现在标题/小节边界」→ line
+  //   - 普通书「段落之间用空行分隔」→ block
+  //   - 硬换行排版书（每行被折到固定字宽）→ block，避免把折行误判成段落
+  function resolveParagraphMode(text) {
+    const lines = String(text || '').split(/\r?\n/);
+    let blank = 0;
+    for (const ln of lines) if (ln.trim() === '') blank++;
+    const ratio = lines.length ? blank / lines.length : 0;
+    // 几乎没有空行 → 直接按行（原有行为，覆盖纯网文）
+    if (blank === 0 || (lines.length > 3 && ratio < 0.04)) return 'line';
+    // blankGapRatio：相邻非空行之间“夹着空行”的间隙占比
+    const idx = [];
+    for (let i = 0; i < lines.length; i++) if (lines[i].trim() !== '') idx.push(i);
+    let gaps = 0, bgaps = 0;
+    for (let k = 1; k < idx.length; k++) {
+      gaps++;
+      let hasBlank = false;
+      for (let j = idx[k - 1] + 1; j < idx[k]; j++) {
+        if (lines[j].trim() === '') { hasBlank = true; break; }
+      }
+      if (hasBlank) bgaps++;
+    }
+    const bgr = gaps ? bgaps / gaps : 0;
+    // 空行确实用于分隔段落 → 按块
+    if (bgr >= 0.4) return 'block';
+    // 疑似被排版折行（大量行卡在 55~95 字宽）→ 按块，避免把折行当段落
+    let n = 0, w = 0;
+    for (const ln of lines) {
+      const t = ln.trim();
+      if (!t) continue;
+      n++;
+      if (t.length >= 55 && t.length <= 95) w++;
+    }
+    if (n && (w / n) >= 0.5) return 'block';
+    // 否则：空行未用于分隔段落（只出现在边界）→ 每行一段
+    return 'line';
   }
 
   function renderNavOl(nodes) {
@@ -696,6 +740,7 @@
     escapeHtml: escapeHtml,
     isSeparator: isSeparator,
     bodyToHtml: bodyToHtml,
+    resolveParagraphMode: resolveParagraphMode,
     matchHeading: matchHeading,
     detect: detect,
     buildChapters: buildChapters,
