@@ -149,11 +149,16 @@
         }
       }
     }
-    // 3) 第X章/回/节/卷/部/篇/集（默认核心规则）
+    // 3) 第X章/回/节/卷/部/篇/集/幕（默认核心规则）
     //    章/节后需有分隔符（空格/：:/、/-/—）或行尾，避免把"第二章内容。"误判为正文标题
-    m = /^\s*第\s*([0-9零一二三四五六七八九十百千XVI]+)\s*[章回节卷部篇集](?:[\s：:、\-—]+(.+))?\s*$/i.exec(line);
+    m = /^\s*第\s*([0-9零一二三四五六七八九十百千XVI]+)\s*[章回节卷部篇集幕](?:[\s：:、\-—]+(.+))?\s*$/i.exec(line);
     if (m) {
       return { level: 1, text: line.trim(), source: 'cnchapter' };
+    }
+    // 3.5) 独立特殊章（无"第X"）：楔子/序章/终章/番外/后记等，补默认规则漏检的常见章回名
+    m = /^\s*(楔子|引子|序章|序言|前言|终章|终曲|尾声|番外|外传|后记|附录|题记|感言|开场白|人物表|楔子一|楔子二)\s*$/.exec(line);
+    if (m) {
+      return { level: 1, text: line.trim(), source: 'special' };
     }
     // 4) Chapter N（默认核心规则），保留整行作为标题
     m = /^\s*chapter\s+([0-9]+)(?:\.?\s*(.*))?\s*$/i.exec(line);
@@ -528,13 +533,37 @@
     '  </rootfiles>\n' +
     '</container>\n';
 
-  const STYLE_CSS =
-    'body{margin:0;padding:0;line-height:1.8;color:#222;}\n' +
-    'section{padding:0.8em 0;}\n' +
-    'h1{font-size:1.4em;border-bottom:1px solid #ddd;padding-bottom:.3em;margin:.4em 0 .8em;}\n' +
-    // 图书精排风：首行缩进 2em（段落连成一片，消除稀疏感），不用两端对齐，章首段不缩进
-    'p{margin:0;text-indent:2em;text-align:left;}\n' +
-    'p:first-of-type{text-indent:0;}\n';
+  // 排版样式默认值（= 原写死值，确保「不调任何选项」时输出与旧版完全一致）
+  const DEFAULT_STYLE = {
+    lineHeight: '1.8',     // 行距倍数
+    sectionPadV: '0.8',    // 章节上下内边距（em）
+    indent: '2em',         // 首行缩进（'2em' 或 '0'）
+    align: 'left',         // 对齐：left / justify / center
+    paraSpacing: '0'       // 段落间距（'0' / '0.4em' / '0.8em'）
+  };
+  // 预设：开启即在「自动排版」基础上整体偏移，用户仍可在预设之上微调
+  const STYLE_PRESETS = {
+    compact: { lineHeight: '1.5', sectionPadV: '0.5', indent: '2em', align: 'left', paraSpacing: '0' },
+    standard: { lineHeight: '1.8', sectionPadV: '0.8', indent: '2em', align: 'left', paraSpacing: '0' },
+    loose: { lineHeight: '2.0', sectionPadV: '1.2', indent: '2em', align: 'left', paraSpacing: '0.4em' }
+  };
+  // 由样式配置生成 CSS。scope 非空时把选择器前缀为该 class，用于页内实时预览而不污染全局。
+  // 注意：只动间距/对齐/缩进，绝不写 font-family，避免 Kindle 转 PDF。
+  function buildStyleCss(style, scope) {
+    const o = Object.assign({}, DEFAULT_STYLE, style || {});
+    const s = scope ? ('.' + scope + ' ') : '';
+    const bodyRule = scope
+      ? ('.' + scope + '{line-height:' + o.lineHeight + ';color:#222;}')
+      : 'body{margin:0;padding:0;line-height:' + o.lineHeight + ';color:#222;}';
+    return [
+      bodyRule,
+      s + 'section{padding:' + o.sectionPadV + 'em 0;}',
+      s + 'h1{font-size:1.4em;border-bottom:1px solid #ddd;padding-bottom:.3em;margin:.4em 0 .8em;}',
+      // 图书精排风：首行缩进（段落连成一片，消除稀疏感），章首段不缩进
+      s + 'p{margin:0 ' + o.paraSpacing + ';text-indent:' + o.indent + ';text-align:' + o.align + ';}',
+      s + 'p:first-of-type{text-indent:0;}'
+    ].join('\n');
+  }
 
   /* --------------------------- 打包装配 --------------------------- */
 
@@ -567,7 +596,7 @@
     oebps.file('content.opf', renderOpf(chapters, meta, cover));
     oebps.file('nav.xhtml', renderNav(tree, meta));
     oebps.file('toc.ncx', renderNcx(chapters, meta));
-    oebps.file('style.css', STYLE_CSS);
+    oebps.file('style.css', buildStyleCss(opts.style));
     if (cover) {
       oebps.folder('images').file('cover.' + cover.ext, opts.cover.data);
       oebps.file('cover.xhtml', renderCoverPage(cover));
@@ -741,6 +770,9 @@
     isSeparator: isSeparator,
     bodyToHtml: bodyToHtml,
     resolveParagraphMode: resolveParagraphMode,
+    buildStyleCss: buildStyleCss,
+    DEFAULT_STYLE: DEFAULT_STYLE,
+    STYLE_PRESETS: STYLE_PRESETS,
     matchHeading: matchHeading,
     detect: detect,
     buildChapters: buildChapters,
