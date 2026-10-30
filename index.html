@@ -33,8 +33,10 @@
           <path d="M12 16V4m0 0L8 8m4-4 4 4"/>
           <path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
         </svg>
-        <p>拖入 .txt 文件，或 <label class="link">点击选择<input id="file" type="file" accept=".txt,text/plain" hidden/></label></p>
+        <p>拖入 .txt 文件，或 <label class="link">点击选择<input id="file" type="file" accept=".txt,text/plain" multiple hidden/></label></p>
+        <p class="hint">可一次选多个文件，将按列表顺序<b>合并为一本</b> EPUB（拖拽或点上下箭头调整顺序）。</p>
       </div>
+      <div id="fileList" class="file-list"></div>
       <details class="paste">
         <summary>或粘贴文本</summary>
         <textarea id="paste" rows="6" placeholder="在此粘贴文本内容…"></textarea>
@@ -73,6 +75,61 @@
           <option value="line">每行一段</option>
         </select>
       </div>
+      <div class="step"><span class="step-no">2</span><h2>排版样式（可选）</h2></div>
+      <p class="hint">已按「标准」自动排版，可在此微调。仅调间距与对齐，不改字体。</p>
+      <div class="field">
+        <label>预设</label>
+        <div class="btn-row">
+          <button id="presetCompact" class="btn tiny" type="button">紧凑</button>
+          <button id="presetStandard" class="btn tiny" type="button">标准</button>
+          <button id="presetLoose" class="btn tiny" type="button">宽松</button>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label>首行缩进</label>
+          <select id="indent">
+            <option value="2em" selected>缩进 2 字</option>
+            <option value="0">不缩进</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>行距</label>
+          <select id="lineHeight">
+            <option value="1.5">1.5</option>
+            <option value="1.8" selected>1.8</option>
+            <option value="2.0">2.0</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label>对齐</label>
+          <select id="align">
+            <option value="left" selected>左对齐</option>
+            <option value="justify">两端对齐</option>
+            <option value="center">居中</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>段间距</label>
+          <select id="paraSpacing">
+            <option value="0" selected>无</option>
+            <option value="0.4em">0.4 字</option>
+            <option value="0.8em">0.8 字</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>上下页边距</label>
+        <select id="sectionPadV">
+          <option value="0.5">较窄</option>
+          <option value="0.8" selected>标准</option>
+          <option value="1.2">较宽</option>
+        </select>
+      </div>
+      <h2 class="preview-title">排版预览</h2>
+      <div id="stylePreview" class="style-preview styleprev"></div>
       <div class="field custom-rule">
         <label>自定义章节规则（可选）</label>
         <div class="rule-input">
