@@ -10,7 +10,8 @@
     meta: { title: '', author: '' },
     cover: null,
     customRules: [],
-    manualVolMarkers: []
+    manualVolMarkers: [],
+    files: []
   };
 
   /* ----------------------------- 设置记忆 ----------------------------- */
@@ -57,28 +58,90 @@
     return enc;
   }
 
-  async function loadFile(file) {
-    const buf = await file.arrayBuffer();
-    const sel = $('encoding').value;
-    const res = EpubCore.decodeBuffer(buf, sel);
-    state.text = res.text;
-    // 自动模式下把识别到的编码显示出来并同步下拉框，用户一眼可知、也可手动改
-    if (sel === 'auto') {
-      $('encoding').value = normalizeEnc(res.encoding);
-      $('detectedEncoding').textContent = '识别编码：' + (ENC_LABEL[res.encoding] || res.encoding);
+  // 从文件名自动取书名/作者（仅在输入框为空时填入，保留用户手动修改）
+  function autoFillMetaFromName(name) {
+    const base = String(name || '').replace(/\.txt$/i, '').trim();
+    if (!base) return;
+    let title = base, author = '';
+    let m = base.match(/^(.*?)[\s（(\[]+([^）)\]]{1,40})[\s）)\]]\s*$/);
+    if (m) { title = m[1].trim(); author = m[2].trim(); }
+    else {
+      m = base.match(/^(.*?)\s*[-—–]\s*(.+)$/);
+      if (m) { title = m[1].trim(); author = m[2].trim(); }
     }
-    $('title').value = (file.name || 'book').replace(/\.txt$/i, '');
+    if (!$('title').value.trim()) $('title').value = title;
+    if (!$('author').value.trim()) $('author').value = author || '佚名';
+  }
+
+  // 拼接所有已添加文件为一段文本（按列表顺序，文件间留两个换行）
+  function rebuildMergedText() {
+    if (!state.files.length) {
+      state.text = '';
+      $('detectedEncoding').textContent = '';
+      renderFiles();
+      renderToc();
+      renderPreview();
+      $('generate').disabled = true;
+      $('generateSplit').disabled = true;
+      return;
+    }
+    state.text = state.files.map(function (f) { return f.text; }).join('\n\n');
+    if (state.files.length === 1) autoFillMetaFromName(state.files[0].name);
+    else if (!$('title').value.trim()) $('title').value = state.files[0].name.replace(/\.txt$/i, '');
+    renderFiles();
     clearCoverState(); // 换了源文本，旧封面不再匹配
     runDetect();
+  }
+
+  async function addFiles(fileList) {
+    if (!fileList || !fileList.length) return;
+    for (let i = 0; i < fileList.length; i++) {
+      const file = fileList[i];
+      const buf = await file.arrayBuffer();
+      const sel = $('encoding').value;
+      const res = EpubCore.decodeBuffer(buf, sel);
+      state.files.push({ name: file.name, text: res.text, encoding: res.encoding });
+    }
+    rebuildMergedText();
+  }
+
+  function removeFile(idx) {
+    state.files.splice(idx, 1);
+    rebuildMergedText();
+  }
+
+  function moveFile(idx, dir) {
+    const j = idx + dir;
+    if (j < 0 || j >= state.files.length) return;
+    const t = state.files[idx]; state.files[idx] = state.files[j]; state.files[j] = t;
+    rebuildMergedText();
+  }
+
+  function renderFiles() {
+    const box = $('fileList');
+    if (!state.files.length) { box.innerHTML = ''; return; }
+    let html = '';
+    state.files.forEach(function (f, i) {
+      html += '<div class="file-item" data-i="' + i + '">'
+        + '<span class="fi-name">' + escapeHtml(f.name) + '</span>'
+        + '<span class="fi-enc">' + (ENC_LABEL[f.encoding] || f.encoding) + '</span>'
+        + '<button class="fi-btn" data-act="up" ' + (i === 0 ? 'disabled' : '') + ' title="上移">▲</button>'
+        + '<button class="fi-btn" data-act="down" ' + (i === state.files.length - 1 ? 'disabled' : '') + ' title="下移">▼</button>'
+        + '<button class="fi-btn" data-act="del" title="移除">✕</button>'
+        + '</div>';
+    });
+    box.innerHTML = html;
   }
 
   function loadPaste() {
     const v = $('paste').value;
     if (!v.trim()) { setStatus('粘贴内容为空', false); return; }
+    state.files = [];
     state.text = v;
     $('detectedEncoding').textContent = '粘贴文本（已是 Unicode）';
     clearCoverState();
     runDetect();
+    renderFiles();
   }
 
   /* ----------------------------- 检测与渲染 ----------------------------- */
@@ -93,6 +156,7 @@
     });
     renderToc();
     renderPreview();
+    renderStylePreview();
     $('generate').disabled = false;
     $('generateSplit').disabled = false;
     const n = state.entries.length;
@@ -169,6 +233,46 @@
     };
   }
 
+  /* ----------------------------- 排版样式 ----------------------------- */
+
+  // 读取样式面板当前值（默认值与 buildStyleCss 的 DEFAULT_STYLE 一致 → 不调即旧版效果）
+  function styleConfig() {
+    return {
+      indent: $('indent').value,
+      lineHeight: $('lineHeight').value,
+      align: $('align').value,
+      paraSpacing: $('paraSpacing').value,
+      sectionPadV: $('sectionPadV').value
+    };
+  }
+
+  function applyPreset(name) {
+    const p = EpubCore.STYLE_PRESETS[name];
+    if (!p) return;
+    $('indent').value = p.indent;
+    $('lineHeight').value = p.lineHeight;
+    $('align').value = p.align;
+    $('paraSpacing').value = p.paraSpacing;
+    $('sectionPadV').value = p.sectionPadV;
+    renderStylePreview();
+  }
+
+  // 用首章内容（或占位示例）渲染排版预览，样式实时跟随控件
+  function renderStylePreview() {
+    const box = $('stylePreview');
+    if (!box) return;
+    const css = EpubCore.buildStyleCss(styleConfig(), 'styleprev');
+    let sample = '';
+    if (state.text) {
+      try {
+        const chs = EpubCore.buildChapters(state.text, state.entries, meta(), $('paragraphMode').value);
+        if (chs.length) sample = '<h1>' + escapeHtml(chs[0].title) + '</h1>' + EpubCore.bodyToHtml(chs[0].body, chs[0].mode);
+      } catch (e) { /* 预览失败不影响主流程 */ }
+    }
+    const placeholder = '<h1>第一章 示例标题</h1><p>这是一段示例文字，用来预览你设置的排版效果。首行应当有缩进，行与行之间保持一定的距离，读起来舒服。</p><p>这是另一段文字。当你调整上方的缩进、行距、对齐或段间距时，这里的预览会实时更新，方便你决定最终导出成什么样子。</p>';
+    box.innerHTML = '<style>' + css + '</style>' + (sample || placeholder);
+  }
+
   /* ----------------------------- 事件委托 ----------------------------- */
 
   $('tocList').addEventListener('click', function (ev) {
@@ -233,6 +337,19 @@
   // 段落切分模式记忆
   $('paragraphMode').addEventListener('change', function () {
     saveSettings();
+    if (state.text) renderStylePreview();
+  });
+
+  /* ----------------------------- 排版样式绑定 ----------------------------- */
+
+  ['presetCompact', 'presetStandard', 'presetLoose'].forEach(function (id) {
+    $(id).addEventListener('click', function () {
+      const name = id === 'presetCompact' ? 'compact' : (id === 'presetLoose' ? 'loose' : 'standard');
+      applyPreset(name);
+    });
+  });
+  ['indent', 'lineHeight', 'align', 'paraSpacing', 'sectionPadV'].forEach(function (id) {
+    $(id).addEventListener('change', renderStylePreview);
   });
 
   /* ----------------------------- 自定义规则 ----------------------------- */
@@ -334,6 +451,7 @@
     if (!state.text) { setStatus('请先导入文本', false); return; }
     const m = meta();
     const pmode = $('paragraphMode').value;
+    const style = styleConfig();
     const mode = $('splitMode').value;
     const allChapters = EpubCore.buildChapters(state.text, state.entries, m, pmode);
     const books = EpubCore.splitBooks(allChapters, {
@@ -349,7 +467,7 @@
         title: total > 1 ? (m.title + '（' + (bi + 1) + '/' + total + '）') : m.title
       });
       const zip = EpubCore.assembleEpub(JSZip, {
-        chapters: bk, meta: bMeta, cover: state.cover, paragraphMode: pmode
+        chapters: bk, meta: bMeta, cover: state.cover, paragraphMode: pmode, style: style
       });
       zip.generateAsync({ type: 'uint8array' }).then(function (bytes) {
         outer.file(prefix + '-' + String(bi + 1).padStart(2, '0') + '.epub', bytes);
@@ -386,7 +504,7 @@
     if (!state.text) { setStatus('请先导入文本', false); return; }
     const m = meta();
     try {
-      const zip = EpubCore.assembleEpub(JSZip, { text: state.text, entries: state.entries, meta: m, cover: state.cover, paragraphMode: $('paragraphMode').value });
+      const zip = EpubCore.assembleEpub(JSZip, { text: state.text, entries: state.entries, meta: m, cover: state.cover, paragraphMode: $('paragraphMode').value, style: styleConfig() });
       zip.generateAsync({ type: 'blob', mimeType: 'application/epub+zip' }).then(function (blob) {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -408,9 +526,23 @@
   /* ----------------------------- 文件/拖拽绑定 ----------------------------- */
 
   $('file').addEventListener('change', function (ev) {
-    if (ev.target.files && ev.target.files[0]) loadFile(ev.target.files[0]);
+    if (ev.target.files && ev.target.files.length) addFiles(ev.target.files);
+    ev.target.value = ''; // 允许重复选同一文件
   });
   $('usePaste').addEventListener('click', loadPaste);
+  $('detect').addEventListener('click', function () { if (state.text) runDetect(); });
+
+  // 文件列表：上移/下移/移除
+  $('fileList').addEventListener('click', function (ev) {
+    const btn = ev.target.closest('button[data-act]');
+    if (!btn) return;
+    const item = btn.closest('.file-item');
+    const i = parseInt(item.getAttribute('data-i'), 10);
+    const act = btn.getAttribute('data-act');
+    if (act === 'up') moveFile(i, -1);
+    else if (act === 'down') moveFile(i, 1);
+    else if (act === 'del') removeFile(i);
+  });
 
   const drop = $('drop');
   ['dragenter', 'dragover'].forEach(function (ev) {
@@ -420,8 +552,8 @@
     drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('over'); });
   });
   drop.addEventListener('drop', function (e) {
-    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-    if (f) loadFile(f);
+    const files = e.dataTransfer && e.dataTransfer.files;
+    if (files && files.length) addFiles(files);
   });
 
   /* ----------------------------- 自定义封面 ----------------------------- */
