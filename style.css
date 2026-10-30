@@ -218,3 +218,53 @@ body {
 .batch-input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
 .chk.small { flex-direction: row; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); }
 .toc-item button.vol-on { background: var(--brand); color: #fff; border-color: var(--brand); }
+
+/* 多文件列表（合并用） */
+.file-list { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+.file-item {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+  border: 1px solid var(--line); border-radius: 8px; background: #fbfdff; font-size: 13px;
+}
+.file-item .fi-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.file-item .fi-enc { flex: none; font-size: 11px; color: var(--faint); }
+.file-item .fi-btn {
+  border: 1px solid var(--line); background: #fff; border-radius: 5px; cursor: pointer;
+  width: 26px; height: 26px; line-height: 1; font-size: 12px; color: var(--muted); flex: none;
+}
+.file-item .fi-btn:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); }
+.file-item .fi-btn:disabled { opacity: .35; cursor: default; }
+
+/* 排版样式面板 */
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* 实时排版预览 */
+.style-preview {
+  border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+  background: #fff; max-height: 240px; overflow: auto; color: #222;
+}
+.style-preview h1 { margin: 0 0 .6em; font-size: 1.2em; border-bottom: 1px solid #ddd; padding-bottom: .3em; }
+.style-preview p { margin: 0; }
+.style-preview p + p { margin-top: .2em; }
+
+/* 手机响应式：你主要在手机上使用，确保不用缩小就能完整操作 */
+@media (max-width: 600px) {
+  .layout { padding: 14px; gap: 14px; }
+  .panel { padding: 14px 14px; }
+  .grid2 { grid-template-columns: 1fr; }
+  /* 触摸目标放大，便于手指点按 */
+  .btn, .field select, .field input[type=text], .mini-input, .batch-input, .rule-input input[type=text] {
+    min-height: 42px; font-size: 16px;
+  }
+  .btn.tiny { min-height: 36px; padding: 6px 14px; font-size: 13px; }
+  .toc-item input[type=text] { min-height: 38px; }
+  .toc-item button, .rule-item button, .file-item .fi-btn { width: 34px; height: 34px; font-size: 14px; }
+  .file-item { flex-wrap: wrap; }
+  .file-item .fi-name { flex-basis: 100%; }
+  .topbar { padding: 12px 14px; }
+  /* 操作按钮吸底，长页面也不用滚回顶部才能下载 */
+  .actions {
+    position: sticky; bottom: 0; z-index: 5;
+    background: var(--surface); padding: 10px 0; border-top: 1px solid var(--line);
+  }
+  .actions .btn.primary { flex: 1; min-height: 46px; }
+}
